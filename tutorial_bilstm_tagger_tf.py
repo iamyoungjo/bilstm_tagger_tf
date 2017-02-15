@@ -101,8 +101,8 @@ net = regression(net, optimizer='adam', loss='categorical_crossentropy')
 
 # Training
 model = tflearn.DNN(net, tensorboard_verbose=0)
-#model.fit(train, trainY, validation_set=(testX, testY), show_metric=True,
-#          batch_size=32)
+model.fit(train[0], train[1], validation_set=(dev[0], dev[1]), show_metric=True,
+          batch_size=128)
 
 
 
