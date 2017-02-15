@@ -3,12 +3,13 @@ from itertools import count, chain
 import random
 import math
 
+import sys
 import dynet as dy
 import numpy as np
 
 # format of files: each line is "word1/tag2 word2/tag2 ..."
-train_file="WSJ_TRAIN"
-test_file="WSJ_DEV"
+train_file=sys.argv[1]
+test_file=sys.argv[2]
 
 MAX_LIK_ITERS = 3
 SMALL_NUMBER = -1e10
@@ -16,12 +17,12 @@ MARGIN = 0
 
 class Vocab:
     def __init__(self, w2i=None):
-        if w2i is None: w2i = defaultdict(count(0).next)
+        if w2i is None: w2i = defaultdict(int)
         self.w2i = dict(w2i)
-        self.i2w = {i:w for w,i in w2i.iteritems()}
+        self.i2w = {i:w for w,i in w2i.items()}
     @classmethod
     def from_corpus(cls, corpus):
-        w2i = defaultdict(count(0).next)
+        w2i = defaultdict(int)
         for sent in corpus:
             [w2i[word] for word in sent]
         return Vocab(w2i)
@@ -33,7 +34,7 @@ def read(fname):
     Read a POS-tagged file where each line is of the form "word1/tag2 word2/tag2 ..."
     Yields lists of the form [(word1,tag1), (word2,tag2), ...]
     """
-    with file(fname) as fh:
+    with open(fname) as fh:
         for line in fh:
             line = line.strip().split()
             sent = [tuple(x.rsplit("/",1)) for x in line]
@@ -228,12 +229,12 @@ def tag_sent(words):
     return tags
 
 num_tagged = cum_loss = 0
-for ITER in xrange(50):
+for ITER in range(50):
     random.shuffle(train)
     for i,s in enumerate(train,1):
         if i % 500 == 0:
             trainer.status()
-            print cum_loss / num_tagged
+            print (cum_loss / num_tagged)
             cum_loss = 0
             num_tagged = 0
         if i % 10000 == 0 or i == len(train)-1: 
@@ -251,7 +252,7 @@ for ITER in xrange(50):
                 for go,gu in zip(golds,tags):
                     if go == gu: good += 1
                     else: bad += 1
-            print good/(good+bad), good_sent/(good_sent+bad_sent)
+            print (good/(good+bad), good_sent/(good_sent+bad_sent))
         # train on sent
         words = [w for w,t in s]
         golds = [t for w,t in s]
@@ -264,7 +265,8 @@ for ITER in xrange(50):
         num_tagged += len(golds)
         loss_exp.backward()
         trainer.update()
-    print "epoch %r finished" % ITER
+    print ("epoch %r finished" % ITER)
     trainer.update_epoch(1.0)
+
 
 
