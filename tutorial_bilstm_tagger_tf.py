@@ -2,7 +2,6 @@ from collections import Counter, defaultdict
 from itertools import count
 import random
 
-import dynet as dy
 import tflearn
 from tflearn.data_utils import to_categorical, pad_sequences
 from tflearn.datasets import imdb
@@ -11,18 +10,23 @@ from tflearn.layers.embedding_ops import embedding
 from tflearn.layers.recurrent import bidirectional_rnn, BasicLSTMCell
 from tflearn.layers.estimator import regression
 
+import sys
+import numpy as np
+
 # format of files: each line is "word1/tag2 word2/tag2 ..."
-train_file="WSJ_TRAIN"
-dev_file="WSJ_DEV"
+train_file=sys.argv[1]
+test_file=sys.argv[2]
+
+
 
 class Vocab:
     def __init__(self, w2i=None):
-        if w2i is None: w2i = defaultdict(count(0).next)
+        if w2i is None: w2i = defaultdict(int)
         self.w2i = dict(w2i)
-        self.i2w = {i:w for w,i in w2i.iteritems()}
+        self.i2w = {i:w for w,i in w2i.items()}
     @classmethod
     def from_corpus(cls, corpus):
-        w2i = defaultdict(count(0).next)
+        w2i = defaultdict(int)
         for sent in corpus:
             [w2i[word] for word in sent]
         return Vocab(w2i)
@@ -41,28 +45,88 @@ def read(fname):
             yield sent
 
 train=list(read(train_file))
-dev=list(read(dev_file))
+test=list(read(test_file))
 words=[]
 tags=[]
 chars=set()
 wc=Counter()
 for sent in train:
     for w,p in sent:
-        words.append(w)
-        tags.append(p)
+        words.append(w)#float(w.split("word")[1]))
+        tags.append(float(p.split("tag")[1]))
         chars.update(w)
         wc[w]+=1
-words.append("_UNK_")
-chars.add("<*>")
+# words.append("_UNK_")
+# chars.add("<*>")
+
+
+words_t=[]
+tags_t=[]
+chars_t=set()
+wc_t=Counter()
+for sent in test:
+    for w,p in sent:
+        words_t.append(w)
+        tags_t.append(float(p.split("tag")[1]))
+        chars_t.update(w)
+        wc_t[w]+=1
+# words_t.append("_UNK_")
+# chars_t.add("<*>")
 
 vw = Vocab.from_corpus([words]) 
 vt = Vocab.from_corpus([tags])
 vc = Vocab.from_corpus([chars])
-UNK = vw.w2i["_UNK_"]
+# UNK = vw.w2i["_UNK_"]
 
 nwords = vw.size()
 ntags  = vt.size()
 nchars  = vc.size()
+
+def w2v(word, d):
+	wvec = []
+	for c in word:
+		wvec.append(d[c])
+	return wvec
+
+dictionary = {'0' : 0, '1' : 1, '2' : 2, '3' : 3, '4' : 4, '5' : 5, '6' : 6, '7' : 7, '8' : 8, '9' : 9, 'w' : 10, 'o' : 11, 'r' : 12, 'd' : 13}
+
+trainW = []
+for word in words:
+	#wvec = np.zeros(14)
+	#wvec[int(word)-1] = 1.0
+	trainW.append(w2v(word, dictionary))
+trainW = np.array(trainW)# .reshape(len(words), 50000)
+
+trainT = []	
+for tag in tags:
+# 	tvec = np.zeros(10)
+# 	tvec[int(tag)-1] = 1.0
+	trainT.append(int(tag)-1)
+trainT = np.array(trainT)#.reshape(len(tags), 1)
+
+testW = []
+for word in words_t:
+# 	wvec = np.zeros(14)
+# 	wvec[int(word)-1] = 1.0
+	testW.append(w2v(word, dictionary))
+testW = np.array(testW)# .reshape(len(words_t), 50000)
+
+testT = []	
+for tag in tags_t:
+# 	tvec = np.zeros(10)
+# 	tvec[int(tag)-1] = 1.0
+	testT.append(int(tag)-1)
+testT = np.array(testT)#.reshape(len(tags_t), 1)
+
+
+#Pre-processing
+# Sequence padding
+trainW = pad_sequences(trainW, maxlen=20, value=0.)
+testW = pad_sequences(testW, maxlen=20, value=0.)
+# Converting labels to binary vectors
+trainT = to_categorical(trainT, nb_classes=10)
+testT = to_categorical(testT, nb_classes=10)
+
 
 # DyNet Starts
 # TFlearn starts
@@ -90,20 +154,30 @@ cBwdRNN = dy.LSTMBuilder(1, 20, 64, model)
 
 
 # Data preprocessing
+print("nwords: ", nwords)
+print("ntags: ", ntags)
+print("train[:5] = ", train[:5])
 
 # Network building (word-level)
-net = input_data(shape=[None, 128])
-net = embedding(net, input_dim=nwords, output_dim=32)
+net = input_data(shape=[None, 20])
+net = embedding(net, input_dim=14, output_dim=32)
 net = bidirectional_rnn(net, BasicLSTMCell(32), BasicLSTMCell(32))
 net = dropout(net, 0.5)
 net = fully_connected(net, ntags, activation='softmax')
 net = regression(net, optimizer='adam', loss='categorical_crossentropy')
 
 # Training
-model = tflearn.DNN(net, tensorboard_verbose=0)
-model.fit(train[0], train[1], validation_set=(dev[0], dev[1]), show_metric=True,
-          batch_size=128)
 
+
+
+model = tflearn.DNN(net, tensorboard_verbose=0)
+
+model.fit(trainW, trainT, validation_set=(testW, testT), show_metric=True,
+          batch_size=64)
+
+##example prediction after model set
+print("testW[0]: ", testW[0])
+print("Prediction of testW[0]: ", model.predict(testW[0]))
 
 
 """

@@ -3,7 +3,7 @@ import numpy as np
 import random
 
 V = 50000
-T = 100
+T = 10 
 C = 100000
 
 file = open("corpus.txt", 'w')
