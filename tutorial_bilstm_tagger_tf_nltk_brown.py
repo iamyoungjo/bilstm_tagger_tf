@@ -129,6 +129,6 @@ print("\nPrediction: ")
 print([is2w(testW[:window][i])+"/" +i2t(np.argmax(a)) for i, a in enumerate(model.predict(testW[:window]))])
 print("\nAnswer: ")
 print([is2w(testW[:window][i])+"/" +i2t(np.argmax(a)) for i, a in enumerate(testT[:window])])
-model.save(modelfile)
+model.save("trained_model_" + sys.argv[1] + "_" + sys.argv[1] + ".model")
 
 
